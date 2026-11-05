@@ -1,0 +1,196 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-05T13:36:54.376902+00:00",
+  "title": "Design System: VPS Monitor",
+  "extensions": {
+    "platform": "macOS / SwiftUI / AppKit",
+    "sourceFiles": [
+      "Sources/VPSMonitor/Views.swift",
+      "Sources/VPSMonitor/App.swift"
+    ],
+    "typographyMeta": {
+      "connection-title": {
+        "displayName": "Connection title",
+        "purpose": "First connection heading using Font.system."
+      },
+      "resource-value": {
+        "displayName": "Resource value",
+        "purpose": "Changing measurements with monospaced digits."
+      },
+      "file-preview": {
+        "displayName": "File preview",
+        "purpose": "Selectable source text using system monospaced design."
+      }
+    },
+    "nativeSemanticColors": {
+      "accent": {
+        "api": "Color.accentColor / .tint",
+        "purpose": "Selection and prominent actions",
+        "selectionOpacity": 0.16
+      },
+      "primary": {
+        "api": "Color.primary",
+        "purpose": "Main content"
+      },
+      "secondary": {
+        "api": ".secondary",
+        "purpose": "Metadata and supporting text"
+      },
+      "inset": {
+        "api": ".quaternary",
+        "purpose": "Fingerprint and empty-chart surfaces"
+      },
+      "preview": {
+        "api": "Color(nsColor: .textBackgroundColor)",
+        "purpose": "File preview background"
+      },
+      "cpu": {
+        "api": "Color.blue",
+        "purpose": "CPU history and resource tint"
+      },
+      "memory": {
+        "api": "Color.purple",
+        "purpose": "Memory history and resource tint"
+      },
+      "storage": {
+        "api": "Color.teal",
+        "purpose": "Storage resource tint"
+      },
+      "active": {
+        "api": "Color.green",
+        "purpose": "Connected and active states"
+      },
+      "attention": {
+        "api": "Color.orange",
+        "purpose": "Attention and transitional states"
+      },
+      "failure": {
+        "api": "Color.red",
+        "purpose": "Failures"
+      }
+    },
+    "nativeLayout": {
+      "units": "points",
+      "window": {
+        "minimum": [
+          960,
+          640
+        ],
+        "default": [
+          1180,
+          790
+        ]
+      },
+      "sourceColumn": {
+        "minimum": 190,
+        "ideal": 215,
+        "maximum": 280
+      },
+      "chartHeight": 150,
+      "connectionContentMaximumWidth": 510,
+      "trustSheetWidth": 620,
+      "preview": {
+        "minimum": [
+          750,
+          520
+        ],
+        "ideal": [
+          850,
+          650
+        ]
+      }
+    },
+    "nativeComponents": [
+      {
+        "name": "Source item",
+        "source": "ContentView",
+        "refersTo": "source-item",
+        "description": "SwiftUI Label in a plain Button, selected accessibility trait, accent selection background.",
+        "swiftUI": "Label(item.rawValue, systemImage: item.symbol)\n    .padding(.horizontal, 10).padding(.vertical, 9)\n    .background(selected ? Color.accentColor.opacity(0.16) : Color.clear, in: RoundedRectangle(cornerRadius: 7))"
+      },
+      {
+        "name": "Prominent action",
+        "source": "ConnectionView",
+        "description": "Native large bordered-prominent button with default action and disabled state.",
+        "swiftUI": "Button(\"Connect to Server\", action: connect)\n    .buttonStyle(.borderedProminent).controlSize(.large)\n    .keyboardShortcut(.defaultAction)"
+      },
+      {
+        "name": "Search field",
+        "source": "ProcessesView / ServicesView",
+        "description": "Native rounded-border text field, 240 pt wide.",
+        "swiftUI": "TextField(\"Search services\", text: $search)\n    .textFieldStyle(.roundedBorder).frame(width: 240)"
+      },
+      {
+        "name": "Sortable table",
+        "source": "ProcessesView / ServicesView / FilesView",
+        "description": "SwiftUI Table with KeyPathComparator sorting and native header/row styling."
+      },
+      {
+        "name": "Status label",
+        "source": "StatusLabel",
+        "description": "Readable service state plus SF Symbol, with semantic green/red/orange/secondary styling."
+      },
+      {
+        "name": "Resource history",
+        "source": "HistoryChart",
+        "description": "Swift Charts line plot, fixed percent scale, native axes, labeled empty state."
+      },
+      {
+        "name": "Error banner",
+        "source": "ErrorBanner",
+        "refersTo": "error-banner",
+        "description": "Warning SF Symbol, selectable message, optional Retry, orange opacity 0.1 background."
+      }
+    ],
+    "renderingNote": "This is a native macOS system. No HTML/CSS previews are supplied: a shadow-DOM approximation cannot render actual SwiftUI/AppKit controls. Native component evidence and source snippets are recorded under extensions.nativeComponents; review images are the rendered evidence. Semantic colors have no synthesized CSS tonal ramps.",
+    "reviewEvidence": [
+      ".impeccable/review/window.png",
+      ".impeccable/review/window-dark.png",
+      ".impeccable/review/connection.png",
+      ".impeccable/review/files.png",
+      ".impeccable/review/services.png",
+      ".impeccable/review/window-minimum.png"
+    ]
+  },
+  "components": [],
+  "narrative": {
+    "northStar": "Activity Monitor",
+    "overview": "A familiar Mac monitoring utility in the tradition of Activity Monitor. A persistent source sidebar organizes a quiet detail area around readable measurements, resource history, and sortable tables. Native controls, system typography, SF Symbols, and the current system appearance provide the visual language.\n\nThe interface stays compact enough for inspection while leaving clear space between groups. Emphasis comes from type hierarchy, selected navigation, and meaningful status color. System sheets interrupt only when the task needs focused attention.",
+    "keyCharacteristics": [
+      "Familiar source sidebar and native data tables.",
+      "System typography, SF Symbols, and automatic light/dark appearance.",
+      "Readable measurements with monospaced digits.",
+      "Status communicated with words and symbols as well as color."
+    ],
+    "rules": [
+      {
+        "name": "System Appearance",
+        "body": "Resolve colors through SwiftUI and AppKit semantic APIs; never freeze a screenshot\u2019s light or dark values into app tokens.",
+        "section": "colors"
+      },
+      {
+        "name": "Measured Emphasis",
+        "body": "Use monospaced digits for changing measurements and monospaced text for paths, fingerprints, permissions, and file contents. Keep ordinary interface copy in the system proportional font.",
+        "section": "typography"
+      },
+      {
+        "name": "Native Structure",
+        "body": "Let split-view boundaries, dividers, table rows, and system sheets establish structure before adding a custom container.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use the current system appearance, native focus treatment, and standard control states.",
+      "Do preserve sortable table headings, contextual actions, and keyboard shortcuts.",
+      "Do accompany status color with readable state text and an SF Symbol.",
+      "Do retain visible refresh, paused, loading, error, and empty states.",
+      "Do verify new surfaces in light and dark appearance and at the minimum window size."
+    ],
+    "donts": [
+      "Don't replace semantic system colors with sampled hexadecimal values.",
+      "Don't add custom shadows or decorative cards to ordinary monitoring sections.",
+      "Don't use monospaced type for all interface text.",
+      "Don't present sample, stale, or paused readings as current live data."
+    ]
+  }
+}
