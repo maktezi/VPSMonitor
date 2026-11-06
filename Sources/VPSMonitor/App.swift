@@ -10,7 +10,8 @@ struct VPSMonitorApp: App {
                 .frame(minWidth: 960, minHeight: 640)
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in model.shutdown() }
         }
-        .defaultSize(width: 1180, height: 790)
+        .defaultSize(width: 1240, height: 960)
+        .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(replacing: .newItem) { }
             CommandMenu("Server") {

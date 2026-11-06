@@ -1,159 +1,87 @@
 ---
 name: VPS Monitor
-description: Native macOS server monitoring in the tradition of Activity Monitor.
+description: Native macOS server monitoring following the supplied redesigned Overview reference.
 typography:
-  connection-title:
+  server-title:
     fontFamily: "System"
-    fontSize: "29pt"
+    fontSize: "30pt"
     fontWeight: 600
   resource-value:
     fontFamily: "System"
-    fontSize: "27pt"
-    fontWeight: 500
+    fontSize: "44pt"
+    fontWeight: 300
+  resource-unit:
+    fontFamily: "System"
+    fontSize: "23pt"
   file-preview:
     fontFamily: "System Monospaced"
     fontSize: "12pt"
 rounded:
-  source-selection: "7pt"
-  inset-surface: "8pt"
+  source-selection: "8pt"
+  source-icon: "6pt"
+  alert: "10pt"
 spacing:
-  compact: "9pt"
-  control-gap: "10pt"
   small: "12pt"
   toolbar-inset: "16pt"
-  source-inset: "18pt"
-  medium: "20pt"
-  section: "24pt"
-  sheet: "28pt"
-  connection-inset: "40pt"
-components:
-  source-item:
-    rounded: "{rounded.source-selection}"
-    padding: "9pt 10pt"
-  detail-content:
-    padding: "{spacing.section}"
-  error-banner:
-    padding: "{spacing.small}"
-  file-preview-text:
-    typography: "{typography.file-preview}"
-    padding: "{spacing.source-inset}"
+  compact-content: "24pt"
+  section: "28pt"
+  resource-gap: "32pt"
+  detail-content: "36pt"
+  column-gap: "48pt"
 ---
 
 # Design System: VPS Monitor
 
-## Overview
+## Visual authority
 
-**Creative North Star: "Activity Monitor"**
+The user's supplied “Overview (redesigned)” image is the authority for the app's visual treatment. Preserve its quiet charcoal surfaces, neutral navigation selection, colored icon tiles, large lightweight resource percentages, thin meters, shaded history plots, failure callout, and paired service columns. Native macOS controls and window chrome remain functional and familiar. The surface is an operating tool: real data, clear status, and fast inspection take priority.
 
-A familiar Mac monitoring utility in the tradition of Activity Monitor. A persistent source sidebar organizes a quiet detail area around readable measurements, resource history, and sortable tables. Native controls, system typography, SF Symbols, and the current system appearance provide the visual language.
+## Appearance and color
 
-The interface stays compact enough for inspection while leaving clear space between groups. Emphasis comes from type hierarchy, selected navigation, and meaningful status color. System sheets interrupt only when the task needs focused attention.
+Follow the system's light or dark appearance. `MonitorSurface` resolves the reference's dark content (white 0.075) and sidebar (white 0.10), with corresponding light content (0.99) and sidebar (0.96). Use primary and secondary semantic text, native tables, focus rings, and system sheets. The unified window toolbar shares the content background.
 
-**Key Characteristics:**
+`MonitorPalette` defines the reference's resource accents in sRGB: CPU (0.32, 0.65, 1), memory (0.73, 0.51, 0.96), and storage (0.30, 0.79, 0.82). Sidebar icons reuse these roles, with orange for Services. White SF Symbols sit on subtle native color gradients inside 25 pt tiles. Selected navigation uses primary color at 7% opacity.
 
-- Familiar source sidebar and native data tables.
-- System typography, SF Symbols, and automatic light/dark appearance.
-- Readable measurements with monospaced digits.
-- Status communicated with words and symbols as well as color.
-
-## Colors
-
-The palette is the native macOS semantic palette. Color values deliberately remain system API names, rather than CSS approximations; they resolve with appearance, accent preference, and platform behavior. No fixed color primitives are declared in the frontmatter.
-
-### Primary
-
-- **System accent** (`Color.accentColor`, `.tint`): server icon, folder names/icons, prominent connection actions, and selected source item background. The source selection uses accent opacity (0.16).
-- **CPU blue** (`Color.blue`): CPU history line and resource tint assignment.
-
-### Secondary
-
-- **Memory purple** (`Color.purple`): memory history line and resource tint assignment.
-- **Storage teal** (`Color.teal`): storage resource tint assignment. Native progress indicators retain their platform rendering.
-
-### Neutral
-
-- **Primary content** (`Color.primary`): headings, names, and ordinary data.
-- **Secondary content** (`.secondary`): captions, metadata, supporting copy, and disconnected source items.
-- **Inset material** (`.quaternary`): fingerprint container and empty-chart inset; the empty chart reduces its opacity (0.3).
-- **Text background** (`Color(nsColor: .textBackgroundColor)`): file preview surface.
-- Window, sidebar, grouped form, table stripes, dividers, selection, focus, and disabled controls use their native defaults.
-
-### Status
-
-- **Active green** (`.green`): active service labels and connected indicator.
-- **Attention orange** (`.orange`): transitional service states and incomplete application-service groups. Error and paused banners use orange at opacity (0.1) for their background.
-- **Failure red** (`.red`): failed services and connection errors.
-- Other service states use secondary content styling. Every service state includes text and a symbol.
-
-**The System Appearance Rule.** Resolve colors through SwiftUI and AppKit semantic APIs; never freeze a screenshot’s light or dark values into app tokens.
+Green denotes active or running services, red denotes failed services, and orange denotes transitional states or monitoring warnings. Always pair status color with text. Missing and inactive units use neutral styling; neither implies failure. Failure alerts use a red tint at 8% opacity with a 25% red outline.
 
 ## Typography
 
-Use SwiftUI system text styles for the ordinary hierarchy: `.title` for the server hostname, `.title2` for the trust-sheet heading, `.headline` for section labels, `.body` for main content, `.callout` for status and help, and `.caption` for supporting metadata. Keep their native point sizes and line metrics under platform control.
+Use the system font. Server titles use 30 pt semibold; sidebar server names use 17 pt semibold. Resource values use 44 pt light with a secondary 23 pt percentage suffix and monospaced digits. Supporting measurements use caption text. Resource labels and service column headings use uppercase captions with modest tracking, matching the reference. Ordinary section titles use native headline text.
 
-The frontmatter captures the explicit font sizes implemented for the connection title, resource values, and file preview. Resource values use medium weight with monospaced digits; the connection title uses semibold. Selected source labels and primary table names use medium weight. Paths and permissions use the system monospaced design at the relevant native text style.
+Paths, permissions, SSH fingerprints, and file content use system monospaced text. Do not apply monospace to ordinary navigation or status descriptions.
 
-**The Measured Emphasis Rule.** Use monospaced digits for changing measurements and monospaced text for paths, fingerprints, permissions, and file contents. Keep ordinary interface copy in the system proportional font.
+## Window and navigation
 
-## Layout
+The default window is 1240 × 960 pt; the minimum remains 960 × 640 pt. The source column ranges from 210 to 300 pt, with 225 pt ideal width. The native unified toolbar holds the section title, refresh interval picker, pause/resume, and refresh actions. Keep real macOS window controls and keyboard commands.
 
-Use `NavigationSplitView` with a source column (minimum 190 pt, ideal 215 pt, maximum 280 pt). The main window has a minimum size of 960 × 640 pt and a default size of 1180 × 790 pt. Preserve macOS window resizing and split-view behavior rather than introducing web breakpoints.
+The sidebar has server identity and a compact connection/monitoring status above a divider, four navigation rows with colored icon tiles, and the SSH endpoint and disconnect action at the bottom. Services receives a red indicator only when collected data contains failed units. Distinguish being connected from readings being current, paused, or stale.
 
-Overview content uses the section spacing token for outer padding and vertical grouping. Three resource summaries share available width with dividers; two history charts share a row with a 28 pt gap. Charts are 150 pt high. The overview scrolls vertically when the minimum window height cannot show every service row.
+## Overview composition
 
-Table pages place controls above full-width native tables, with the toolbar-inset token around the control row and small padding around explanatory footers. Process and service search fields are 240 pt wide; the file filter is 220 pt. The status footer remains below the detail content.
+Use a vertical scroll view with 36 pt content padding on wider detail panes and 24 pt on narrower panes. Sections are 28 pt apart. The order is server identity and uptime, an optional failure banner, resources, history, and services.
 
-The connection form is centered within a maximum content width of 510 pt, with the connection-inset padding and vertical scrolling. The trust sheet is 620 pt wide with sheet padding. File preview starts at 750 × 520 pt and has an ideal size of 850 × 650 pt; its content scrolls horizontally and vertically.
+Three equal resource columns are separated by dividers and 32 pt gaps. Every resource presents percentage usage, a 3 pt tinted capsule meter, and capacity or measurement details. CPU initially reads “Sampling…”; its accessibility value explains that another reading is needed.
 
-## Elevation & Depth
+CPU and memory charts share a row with a 48 pt gap. Each chart has a title and the actual collected duration, a fixed 0–100 vertical scale, subtle horizontal grid lines, a shaded area under a monotone line, and a marked latest sample. Chart height is 120 pt. Time-axis labels are hidden; the header describes duration. Never label the graph as ten minutes unless ten minutes of data exists. Load averages sit below CPU history; swap information sits below memory history.
 
-The implemented content has no custom shadows. Dividers, native alternating table rows, subdued inset backgrounds, and the sidebar boundary provide depth. Grouped forms, buttons, sheets, and focus indicators retain platform styling; their appearance is not an app-owned shadow token.
+Services has active and failed totals and a View all action. Applications and Databases & cache share two equal columns when the detail pane is at least 830 pt wide and stack below that width. Each service row is at least 43 pt high with aligned dividers. Preserve scrolling at minimum window size and when groups expand.
 
-**The Native Structure Rule.** Let split-view boundaries, dividers, table rows, and system sheets establish structure before adding a custom container.
+## Interaction and status
 
-## Shapes
+A failure banner appears only for collected failed systemd units and only when the services query succeeded. Review opens Services with the Failed filter. View all and sidebar Services open the full service list. Failed is an explicit filter, distinct from inactive or missing units.
 
-Use the frontmatter source-selection radius for the custom sidebar highlight, and the inset-surface radius for fingerprint and empty-chart surfaces. Native controls, tables, windows, and sheets own their remaining corner shapes. Do not transfer these two radii to every system control.
+Application rows show a status dot, group name, count, active/total ratio, and trailing expansion chevron. Activating a row reveals individual selectable service names and readable status labels. Expose expanded/collapsed state and active/failed counts to accessibility.
 
-## Components
+Database rows translate active/running to Running and active/exited to Completed. Completed does not confirm a running process; preserve the raw state and substate in help text. Other states remain explicit, including Not loaded.
 
-### Navigation
+The footer shows the last successful reading's timestamp and relative age plus SSH · Read-only. Refreshing, paused, stale, error, and empty states remain visible and truthful. Retain the last readings on refresh failure and provide Retry.
 
-Source items pair an SF Symbol with a body label. Selected labels use medium weight and an accent-tinted rounded background; disconnected items are disabled and secondary. The server identity block and connection status sit above navigation, and endpoint/disconnect actions sit below it. Expose selected accessibility traits.
+## Supporting screens
 
-### Buttons and fields
+Connection fields use native grouped Server and Authentication sections. Keep SSH trust verification in a focused native sheet with selectable fingerprints, Cancel, and Trust and Connect. Credentials, permissions, and remote operations retain their existing behavior.
 
-Use native `Button`, `TextField`, `SecureField`, `Picker`, `Toggle`, and `ProgressView`. The connection action uses `.borderedProminent` with large control size and the default-action keyboard shortcut. Trust confirmation also uses `.borderedProminent`. Ordinary actions retain standard styling; disconnect uses `.borderless`; source items use `.plain`. File navigation uses labeled icon-only buttons with help text. Search and path fields use `.roundedBorder`; password entry uses `SecureField`. Preserve native keyboard focus, hover, pressed, and disabled feedback.
+Processes, Services, and Files retain native sortable tables, search/filter controls, numerical sorting, and contextual actions. Empty process and file states explain how to recover. Services names the raw substate column explicitly. Files keeps parent/home navigation, editable paths, hidden-file control, preview sheets, and read-only actions.
 
-### Tables
+## Verification
 
-`Table` owns header appearance, row stripes, selection, and sortable columns. Processes initially sort by descending CPU; services initially sort by name. Files initially sort by name; Name, Size, Modified, and Permissions headings are sortable. Files support selection and double-click open, and provide contextual open/preview and path-copy actions. Preserve numerical sort semantics for sizes, dates, and measurements. Empty states use `ContentUnavailableView`.
-
-### Resource summaries and history
-
-Each summary combines a headline label, measured value, native progress indicator, and secondary detail. Values fit a single line with a minimum scale factor (0.8). Swift Charts uses a fixed percent domain (0–100), labeled ticks at 0/50/100, and time labels. History strokes use width (1.8 pt). Empty history includes a symbol and explanatory caption on a quiet inset surface. Do not add enclosing cards around ordinary overview groups.
-
-### Status and feedback
-
-`StatusLabel` combines the readable state with a checkmark, failure mark, or neutral circle. Application rows show an active count with green or orange feedback. `ErrorBanner` pairs an orange warning symbol with selectable text and an optional retry action. Paused monitoring states explicitly state that the last readings remain visible. Native progress views communicate refresh, connection, directory, and preview activity.
-
-### Sheets and previews
-
-Trust confirmation presents selectable monospaced fingerprints in an inset surface and explicit Cancel / Trust and Connect actions. File preview uses a native sheet with a title/action row, selectable path and text, and an explicit truncation message when needed. Sheet contents use system colors and native dismissal shortcuts.
-
-## Do's and Don'ts
-
-### Do:
-
-- **Do** use the current system appearance, native focus treatment, and standard control states.
-- **Do** preserve sortable table headings, contextual actions, and keyboard shortcuts.
-- **Do** accompany status color with readable state text and an SF Symbol.
-- **Do** retain visible refresh, paused, loading, error, and empty states.
-- **Do** verify new surfaces in light and dark appearance and at the minimum window size.
-
-### Don't:
-
-- **Don't** replace semantic system colors with sampled hexadecimal values.
-- **Don't** add custom shadows or decorative cards to ordinary monitoring sections.
-- **Don't** use monospaced type for all interface text.
-- **Don't** present sample, stale, or paused readings as current live data.
+Review light and dark renders, the 960 × 640 pt minimum, long server names, failure banners, filtered failed services, paused and stale readings, empty history, and individual service states. Use synthetic fixtures for screenshots and never represent them as live server readings. Build and verify the packaged app and SSH helper after UI changes.

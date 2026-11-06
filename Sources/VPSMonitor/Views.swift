@@ -5,8 +5,11 @@ import AppKit
 enum Section: String, CaseIterable, Identifiable {
     case overview = "Overview", processes = "Processes", services = "Services", files = "Files"
     var id: String { rawValue }
+    var tint: Color {
+        switch self { case .overview: MonitorPalette.cpu; case .processes: MonitorPalette.memory; case .services: .orange; case .files: MonitorPalette.storage }
+    }
     var symbol: String {
-        switch self { case .overview: "chart.xyaxis.line"; case .processes: "cpu"; case .services: "gearshape.2"; case .files: "folder" }
+        switch self { case .overview: "chart.xyaxis.line"; case .processes: "cpu"; case .services: "slider.horizontal.3"; case .files: "folder" }
     }
 }
 
@@ -14,33 +17,48 @@ struct ContentView: View {
     @EnvironmentObject private var model: MonitorModel
     @State private var section: Section? = .overview
     @State private var forgetConfirmation = false
+    @State private var serviceFilter = "All"
     init(section: Section = .overview) { _section = State(initialValue: section) }
     var body: some View {
         NavigationSplitView {
             VStack(spacing: 0) {
-                HStack(spacing: 10) {
-                    Image(systemName: "server.rack").font(.title2).foregroundStyle(.tint)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(model.connected ? model.serverLabel : "VPS Monitor").font(.headline).lineLimit(1)
-                        Label(model.connected ? "Connected" : "Not connected", systemImage: "circle.fill")
-                            .font(.caption).foregroundStyle(model.connected ? .green : .secondary)
+                VStack(alignment: .leading, spacing: 9) {
+                    Text(model.connected ? model.serverLabel : "VPS Monitor")
+                        .font(.system(size: 17, weight: .semibold)).lineLimit(2)
+                        .help(model.connected ? model.serverLabel : "VPS Monitor")
+                    HStack(alignment: .firstTextBaseline, spacing: 7) {
+                        Circle().fill(model.connected ? Color.green : Color.secondary).frame(width: 5, height: 5)
+                        Text(connectionStatus).font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    Spacer(minLength: 0)
-                }.padding(18)
-                VStack(spacing: 4) {
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(24).padding(.top, 12)
+                Divider().padding(.horizontal, 24).padding(.bottom, 18)
+                VStack(spacing: 3) {
                     ForEach(Section.allCases) { item in
-                        Button { section = item } label: {
-                            Label(item.rawValue, systemImage: item.symbol)
-                                .font(.body.weight(section == item ? .medium : .regular))
-                                .foregroundStyle(model.connected ? Color.primary : Color.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 10).padding(.vertical, 9)
-                                .background(section == item && model.connected ? Color.accentColor.opacity(0.16) : Color.clear, in: RoundedRectangle(cornerRadius: 7))
-                                .contentShape(Rectangle())
+                        Button {
+                            if item == .services { serviceFilter = "All" }
+                            section = item
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: item.symbol)
+                                    .font(.system(size: 14, weight: .medium)).foregroundStyle(.white)
+                                    .frame(width: 25, height: 25)
+                                    .background(item.tint.gradient, in: RoundedRectangle(cornerRadius: 6))
+                                Text(item.rawValue).font(.body.weight(section == item ? .semibold : .regular))
+                                Spacer(minLength: 0)
+                                if item == .services, failedServices > 0 {
+                                    Circle().fill(.red).frame(width: 6, height: 6)
+                                        .accessibilityLabel("\(failedServices) failed services")
+                                }
+                            }
+                            .foregroundStyle(section == item ? .primary : .secondary)
+                            .padding(.horizontal, 10).padding(.vertical, 7)
+                            .background(section == item && model.connected ? Color.primary.opacity(0.07) : .clear, in: RoundedRectangle(cornerRadius: 8))
+                            .contentShape(Rectangle())
                         }.buttonStyle(.plain).disabled(!model.connected)
                         .accessibilityAddTraits(section == item ? .isSelected : [])
                     }
-                }.padding(.horizontal, 10).padding(.top, 6)
+                }.padding(.horizontal, 16)
                 Spacer(minLength: 10)
                 VStack(alignment: .leading, spacing: 12) {
                     if model.connected {
@@ -53,8 +71,9 @@ struct ContentView: View {
                             Button("Forget saved server", systemImage: "trash") { forgetConfirmation = true }.buttonStyle(.borderless)
                         }
                     }
-                }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
-            }.navigationSplitViewColumnWidth(min: 190, ideal: 215, max: 280)
+                }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
+            }.background(MonitorSurface.sidebar)
+            .navigationSplitViewColumnWidth(min: 210, ideal: 225, max: 300)
         } detail: {
             Group {
                 if model.connected {
@@ -62,22 +81,30 @@ struct ContentView: View {
                         if let error = model.error { ErrorBanner(message: error) { Task { await model.refresh() } } }
                         if model.paused { Label("Monitoring paused. Displaying the last readings.", systemImage: "pause.circle").font(.callout).padding(10).frame(maxWidth: .infinity).background(.orange.opacity(0.1)) }
                         switch section ?? .overview {
-                        case .overview: OverviewView()
+                        case .overview: OverviewView(showServices: {
+                            serviceFilter = "All"; section = .services
+                        }, reviewServices: {
+                            serviceFilter = "Failed"; section = .services
+                        })
                         case .processes: ProcessesView()
-                        case .services: ServicesView()
+                        case .services: ServicesView(initialFilter: serviceFilter).id(serviceFilter)
                         case .files: FilesView()
                         }
                         Divider()
                         HStack {
                             if model.refreshing { ProgressView().controlSize(.mini); Text("Updating…") }
-                            else if let updated = model.lastUpdated { Text("Updated \(updated.formatted(date: .omitted, time: .standard))") }
+                            else if let updated = model.lastUpdated {
+                                (Text("Updated \(updated.formatted(date: .omitted, time: .standard)) · ") + Text(updated, style: .relative) + Text(" ago"))
+                            }
                             Spacer()
                             Text("SSH · Read-only")
-                            if let snapshot = model.snapshot { Text("Linux \(snapshot.kernel)").lineLimit(1) }
                         }.font(.caption).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.vertical, 9)
                     }
                 } else { ConnectionView() }
             }
+            .background(MonitorSurface.content)
+            .toolbarBackground(MonitorSurface.content, for: .windowToolbar)
+            .toolbarBackground(.visible, for: .windowToolbar)
             .navigationTitle(model.connected ? (section ?? .overview).rawValue : "Connect to your VPS")
             .toolbar {
                 if model.connected {
@@ -89,8 +116,8 @@ struct ContentView: View {
                             Text("Every 30 seconds").tag(30.0)
                             Text("Every 60 seconds").tag(60.0)
                         }.frame(width: 155).onChange(of: model.interval) { model.startTimer() }
-                        Button(model.paused ? "Resume" : "Pause", systemImage: model.paused ? "play.fill" : "pause.fill") { model.paused.toggle() }.help(model.paused ? "Resume automatic refresh" : "Pause automatic refresh")
-                        Button("Refresh", systemImage: "arrow.clockwise") { Task { await model.refresh() } }.disabled(model.refreshing).help("Refresh now (⌘R)")
+                        Button(model.paused ? "Resume" : "Pause", systemImage: model.paused ? "play.fill" : "pause.fill") { model.paused.toggle() }.labelStyle(.iconOnly).help(model.paused ? "Resume automatic refresh" : "Pause automatic refresh")
+                        Button("Refresh", systemImage: "arrow.clockwise") { Task { await model.refresh() } }.labelStyle(.iconOnly).disabled(model.refreshing).help("Refresh now (⌘R)")
                     }
                 }
             }
@@ -101,6 +128,30 @@ struct ContentView: View {
             Button("Forget Server", role: .destructive) { model.forgetServer() }
         } message: { Text("This removes the saved connection, password, and trusted host key from this Mac.") }
     }
+    private var failedServices: Int { model.snapshot?.services.filter { $0.state == "failed" }.count ?? 0 }
+    private var connectionStatus: String {
+        if !model.connected { return "Not connected" }
+        if model.error != nil { return "Connected · readings stale" }
+        if model.paused { return "Connected · paused" }
+        return "Connected · auto-monitoring"
+    }
+}
+
+private enum MonitorPalette {
+    static let cpu = Color(red: 0.32, green: 0.65, blue: 1)
+    static let memory = Color(red: 0.73, green: 0.51, blue: 0.96)
+    static let storage = Color(red: 0.30, green: 0.79, blue: 0.82)
+}
+
+private enum MonitorSurface {
+    static let content = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(white: 0.075, alpha: 1) : NSColor(white: 0.99, alpha: 1)
+    })
+    static let sidebar = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(white: 0.10, alpha: 1) : NSColor(white: 0.96, alpha: 1)
+    })
 }
 
 struct ConnectionView: View {
@@ -115,15 +166,19 @@ struct ConnectionView: View {
                         .font(.body).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 Form {
-                    TextField("Server name", text: $model.profile.name, prompt: Text("My VPS"))
-                    TextField("IP or hostname", text: $model.profile.host, prompt: Text("203.0.113.10"))
-                        .autocorrectionDisabled()
-                    TextField("SSH port", text: $model.profile.port)
-                    TextField("Username", text: $model.profile.user)
-                        .autocorrectionDisabled()
-                    SecureField("Password", text: $model.password, prompt: Text("Or leave empty to use an SSH key"))
-                    Toggle("Remember password in Keychain", isOn: $model.profile.rememberPassword)
-                }.formStyle(.grouped).scrollDisabled(true).frame(height: 290)
+                    SwiftUI.Section("Server") {
+                        TextField("Server name", text: $model.profile.name, prompt: Text("My VPS"))
+                        TextField("IP or hostname", text: $model.profile.host, prompt: Text("203.0.113.10"))
+                            .autocorrectionDisabled()
+                        TextField("SSH port", text: $model.profile.port)
+                    }
+                    SwiftUI.Section("Authentication") {
+                        TextField("Username", text: $model.profile.user)
+                            .autocorrectionDisabled()
+                        SecureField("Password", text: $model.password, prompt: Text("Or leave empty to use an SSH key"))
+                        Toggle("Remember password in Keychain", isOn: $model.profile.rememberPassword)
+                    }
+                }.formStyle(.grouped).scrollDisabled(true).frame(height: 340)
                 .disabled(model.busy)
                 if let error = model.error {
                     Label { Text(error).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) } icon: { Image(systemName: "exclamationmark.triangle.fill") }
@@ -180,59 +235,114 @@ struct ErrorBanner: View {
 
 struct OverviewView: View {
     @EnvironmentObject private var model: MonitorModel
+    var showServices: (() -> Void)? = nil
+    var reviewServices: (() -> Void)? = nil
     var body: some View {
         if let s = model.snapshot {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(s.hostname).font(.title.weight(.semibold)).textSelection(.enabled)
-                        Spacer()
-                        Label("Up \(uptime(s.uptime))", systemImage: "clock").foregroundStyle(.secondary)
-                    }
-                    HStack(alignment: .top, spacing: 24) {
-                        ResourceSummary(title: "CPU", value: model.cpuUsage.map { String(format: "%.1f%%", $0) } ?? "Sampling…", detail: "\(s.cores) cores", fraction: (model.cpuUsage ?? 0) / 100, tint: .blue)
-                        Divider()
-                        ResourceSummary(title: "Memory", value: bytes(s.memoryUsed), detail: "of \(bytes(s.memoryTotal)) · \(bytes(s.memoryAvailable)) available", fraction: Double(s.memoryUsed) / Double(max(1, s.memoryTotal)), tint: .purple)
-                        Divider()
-                        ResourceSummary(title: "Storage", value: bytes(s.diskUsed), detail: "of \(bytes(s.diskTotal)) · \(bytes(s.diskFree)) free", fraction: Double(s.diskUsed) / Double(max(1, s.diskTotal)), tint: .teal)
-                    }.fixedSize(horizontal: false, vertical: true)
-                    Divider()
-                    HStack(alignment: .top, spacing: 28) {
-                        HistoryChart(title: "CPU history", readings: model.readings, memory: false, tint: .blue)
-                        HistoryChart(title: "Memory history", readings: model.readings, memory: true, tint: .purple)
-                    }
-                    HStack(spacing: 24) {
-                        Label("Load (1 / 5 / 15 min): " + s.load.map { String(format: "%.2f", $0) }.joined(separator: " / "), systemImage: "waveform.path")
-                        Spacer()
-                        Text(s.swapTotal == 0 ? "Swap: not configured" : "Swap: \(bytes(s.swapTotal - s.swapFree)) / \(bytes(s.swapTotal))")
-                    }.font(.callout).foregroundStyle(.secondary).monospacedDigit()
-                    Divider()
-                    HStack {
-                        Text("Application services").font(.headline)
-                        Spacer()
-                        Text("\(s.services.filter { $0.state == "active" }.count) active services in total").font(.caption).foregroundStyle(.secondary)
-                    }
-                    if let error = s.serviceError { ErrorBanner(message: error) }
-                    else {
-                        VStack(spacing: 0) {
-                            ForEach(["Billo", "ATLAS", "CorGo"], id: \.self) { group in
-                                AppServiceRow(group: group, services: Service.expected(in: group, services: s.services))
-                                Divider()
+            GeometryReader { geometry in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 28) {
+                        HStack(alignment: .bottom) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(s.hostname).font(.system(size: 30, weight: .semibold))
+                                    .textSelection(.enabled).lineLimit(2)
+                                Text("\(s.cores) CPU cores · Linux \(s.kernel)")
+                                    .font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
                             }
-                            ForEach(["postgresql.service", "mysql.service", "redis-server.service"], id: \.self) { name in
-                                let service = s.services.first { $0.name == name }
-                                HStack {
-                                    Text(name.replacingOccurrences(of: ".service", with: "")).frame(width: 130, alignment: .leading)
-                                    Spacer()
-                                    StatusLabel(state: service?.state ?? "not loaded")
-                                }.padding(.vertical, 10)
+                            Spacer(minLength: 16)
+                            Label("Up \(uptime(s.uptime))", systemImage: "clock")
+                                .font(.callout).foregroundStyle(.secondary).fixedSize()
+                        }
+                        if s.serviceError == nil {
+                            let failed = s.services.filter { $0.state == "failed" }.count
+                            if failed > 0 {
+                                HStack(spacing: 12) {
+                                    Circle().fill(.red).frame(width: 6, height: 6).accessibilityHidden(true)
+                                    Text("\(failed) \(failed == 1 ? "service failed" : "services failed")").fontWeight(.semibold)
+                                    Text("· \(failed == 1 ? "a systemd unit needs" : "systemd units need") attention")
+                                        .foregroundStyle(.secondary)
+                                    Spacer(minLength: 8)
+                                    if let reviewServices {
+                                        Button(action: reviewServices) { HStack(spacing: 8) { Text("Review"); Image(systemName: "arrow.right") } }
+                                            .buttonStyle(.plain).foregroundStyle(.red).fontWeight(.semibold)
+                                    }
+                                }.font(.callout).padding(15)
+                                    .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.red.opacity(0.25)))
                             }
                         }
-                    }
-                    Text("CPU is measured between refreshes. Load is the Linux run queue average. Process CPU uses ps lifetime averages; PostgreSQL’s umbrella service may be active (exited).").font(.caption).foregroundStyle(.secondary)
-                }.padding(24)
+                        HStack(alignment: .top, spacing: 32) {
+                            ResourceSummary(title: "CPU", value: model.cpuUsage.map { String(format: "%.1f%%", $0) } ?? "Sampling…", detail: "\(s.cores) cores · sampled between refreshes", fraction: model.cpuUsage.map { $0 / 100 }, tint: MonitorPalette.cpu)
+                            Divider()
+                            ResourceSummary(title: "Memory", value: percent(s.memoryUsed, s.memoryTotal), detail: "\(bytes(s.memoryUsed)) of \(bytes(s.memoryTotal)) · \(bytes(s.memoryAvailable)) available", fraction: Double(s.memoryUsed) / Double(max(1, s.memoryTotal)), tint: MonitorPalette.memory)
+                            Divider()
+                            ResourceSummary(title: "Storage", value: percent(s.diskUsed, s.diskTotal), detail: "\(bytes(s.diskUsed)) of \(bytes(s.diskTotal)) · \(bytes(s.diskFree)) free on /", fraction: Double(s.diskUsed) / Double(max(1, s.diskTotal)), tint: MonitorPalette.storage)
+                        }.fixedSize(horizontal: false, vertical: true).padding(.vertical, 8)
+                        Divider()
+                        HStack(alignment: .top, spacing: 48) {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HistoryChart(title: "CPU history", readings: model.readings, memory: false, tint: MonitorPalette.cpu)
+                                Text("Load average  " + s.load.map { String(format: "%.2f", $0) }.joined(separator: " / ") + "  (1 / 5 / 15 min)")
+                                    .help("Linux run queue averages over 1, 5, and 15 minutes.")
+                            }
+                            VStack(alignment: .leading, spacing: 14) {
+                                HistoryChart(title: "Memory history", readings: model.readings, memory: true, tint: MonitorPalette.memory)
+                                Text(s.swapTotal == 0 ? "Swap not configured" : "Swap: \(bytes(s.swapTotal - s.swapFree)) / \(bytes(s.swapTotal))")
+                            }
+                        }.font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                        Divider()
+                        HStack {
+                            Text("Services").font(.headline)
+                            Spacer()
+                            if s.serviceError == nil {
+                                (Text("\(s.services.filter { $0.state == "active" }.count)").foregroundColor(.green) + Text(" active  ·  ") + Text("\(s.services.filter { $0.state == "failed" }.count)").foregroundColor(s.services.contains { $0.state == "failed" } ? .red : .secondary) + Text(" failed"))
+                                    .font(.callout).foregroundStyle(.secondary).monospacedDigit()
+                            }
+                            if let showServices {
+                                Button(action: showServices) { HStack(spacing: 6) { Text("View all"); Image(systemName: "chevron.right").font(.caption.weight(.semibold)) } }
+                                    .buttonStyle(.plain).foregroundStyle(.tint).padding(.leading, 12)
+                            }
+                        }
+                        if let error = s.serviceError { ErrorBanner(message: error) }
+                        else if geometry.size.width >= 830 {
+                            HStack(alignment: .top, spacing: 48) { applications(s); databases(s) }
+                        } else {
+                            VStack(alignment: .leading, spacing: 24) { applications(s); databases(s) }
+                        }
+                        Text("Inactive or missing preset services may be expected. Completed means active (exited); it does not confirm a running process.")
+                            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }.padding(geometry.size.width >= 830 ? 36 : 24)
+                }.background(MonitorSurface.content)
             }
         }
+    }
+    private func applications(_ s: Snapshot) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("APPLICATIONS").font(.caption.weight(.medium)).tracking(0.7).foregroundStyle(.secondary).padding(.bottom, 12)
+            Divider()
+            ForEach(["Billo", "ATLAS", "CorGo"], id: \.self) { group in
+                AppServiceRow(group: group, services: Service.expected(in: group, services: s.services))
+                Divider()
+            }
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+    private func databases(_ s: Snapshot) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("DATABASES & CACHE").font(.caption.weight(.medium)).tracking(0.7).foregroundStyle(.secondary).padding(.bottom, 12)
+            Divider()
+            ForEach(["postgresql.service", "mysql.service", "redis-server.service"], id: \.self) { name in
+                let service = s.services.first { $0.name == name }
+                HStack {
+                    Text(name.replacingOccurrences(of: ".service", with: "")).fontWeight(.medium)
+                    Spacer(minLength: 8)
+                    DatabaseStatus(service: service)
+                }.frame(minHeight: 43)
+                Divider()
+            }
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+    private func percent(_ used: Int64, _ total: Int64) -> String {
+        String(format: "%.1f%%", 100 * Double(used) / Double(max(1, total)))
     }
     private func uptime(_ seconds: Double) -> String {
         let minutes = Int(seconds) / 60
@@ -240,17 +350,42 @@ struct OverviewView: View {
     }
 }
 
+private struct DatabaseStatus: View {
+    let service: Service?
+    private var completed: Bool { service?.state == "active" && service?.substate == "exited" }
+    private var running: Bool { service?.state == "active" && service?.substate == "running" }
+    var body: some View {
+        HStack(spacing: 7) {
+            if completed { Circle().strokeBorder(.secondary, lineWidth: 1.5).frame(width: 5, height: 5) }
+            else { Circle().fill(running ? Color.green : (service?.state == "failed" ? .red : .secondary)).frame(width: 5, height: 5) }
+            Text(completed ? "Completed" : (running ? "Running" : (service?.state.capitalized ?? "Not loaded")))
+        }.font(.callout).foregroundStyle(running ? Color.green : (service?.state == "failed" ? .red : .secondary))
+            .help(service.map { "\($0.state) (\($0.substate))" } ?? "This service is not loaded")
+    }
+}
+
 struct ResourceSummary: View {
     let title: String
     let value: String
     let detail: String
-    let fraction: Double
+    let fraction: Double?
     let tint: Color
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Text(title).font(.headline)
-            Text(value).font(.system(size: 27, weight: .medium)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.8)
-            ProgressView(value: min(1, max(0, fraction))).tint(tint).accessibilityLabel(title + " usage")
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 7) {
+                Circle().fill(tint).frame(width: 5, height: 5).accessibilityHidden(true)
+                Text(title.uppercased()).font(.caption.weight(.medium)).tracking(0.8).foregroundStyle(.secondary)
+            }
+            (Text(value.hasSuffix("%") ? String(value.dropLast()) : value).font(.system(size: 44, weight: .light)) + Text(value.hasSuffix("%") ? "%" : "").font(.system(size: 23, weight: .regular)).foregroundColor(.secondary))
+                .monospacedDigit().lineLimit(1).minimumScaleFactor(0.65)
+            GeometryReader { geometry in
+                Capsule().fill(Color.primary.opacity(0.09))
+                    .overlay(alignment: .leading) {
+                        Capsule().fill(tint).frame(width: geometry.size.width * min(1, max(0, fraction ?? 0)))
+                    }
+            }.frame(height: 3)
+                .accessibilityLabel(title + " usage")
+                .accessibilityValue(fraction == nil ? "Waiting for next reading" : value)
             Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -261,24 +396,50 @@ struct HistoryChart: View {
     let readings: [Reading]
     let memory: Bool
     let tint: Color
+    private var rangeLabel: String {
+        guard let first = readings.first, let last = readings.last, readings.count > 1 else { return "Collecting history" }
+        let seconds = max(1, Int(last.date.timeIntervalSince(first.date)))
+        return seconds >= 60 ? "Last \(seconds / 60)m \(seconds % 60)s" : "Last \(seconds)s"
+    }
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title).font(.headline)
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                Text(title).font(.headline).foregroundStyle(.primary)
+                Spacer(minLength: 8)
+                Text(rangeLabel).font(.caption).foregroundStyle(.secondary)
+            }
             if readings.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "chart.xyaxis.line").font(.title2).foregroundStyle(.secondary)
                     Text("History appears after the next refresh.").font(.caption).foregroundStyle(.secondary)
-                }.frame(maxWidth: .infinity).frame(height: 150).background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+                }.frame(maxWidth: .infinity).frame(height: 120)
             } else {
-                Chart(readings) { reading in
-                    LineMark(x: .value("Time", reading.date), y: .value("Usage", memory ? reading.memory : reading.cpu))
-                        .foregroundStyle(tint).lineStyle(StrokeStyle(lineWidth: 1.8))
+                Chart {
+                    ForEach(readings) { reading in
+                        AreaMark(x: .value("Time", reading.date), yStart: .value("Baseline", 0), yEnd: .value("Usage", memory ? reading.memory : reading.cpu))
+                            .foregroundStyle(LinearGradient(colors: [tint.opacity(0.28), tint.opacity(0.01)], startPoint: .top, endPoint: .bottom))
+                            .interpolationMethod(.monotone)
+                        LineMark(x: .value("Time", reading.date), y: .value("Usage", memory ? reading.memory : reading.cpu))
+                            .foregroundStyle(tint).lineStyle(StrokeStyle(lineWidth: 1.8)).interpolationMethod(.monotone)
+                    }
+                    if let last = readings.last {
+                        PointMark(x: .value("Time", last.date), y: .value("Usage", memory ? last.memory : last.cpu))
+                            .foregroundStyle(tint.opacity(0.2)).symbolSize(130)
+                        PointMark(x: .value("Time", last.date), y: .value("Usage", memory ? last.memory : last.cpu))
+                            .foregroundStyle(tint).symbolSize(25)
+                    }
                 }
                 .chartYScale(domain: 0...100)
-                .chartYAxis { AxisMarks(values: [0, 50, 100]) { value in AxisGridLine(); AxisValueLabel { Text("\(value.as(Int.self) ?? 0)%") } } }
-                .chartXAxis { AxisMarks(values: .automatic(desiredCount: 3)) { _ in AxisValueLabel(format: .dateTime.hour().minute().second()) } }
-                .frame(height: 150)
-                .accessibilityLabel(title + ", " + (readings.last.map { String(format: "%.1f percent", memory ? $0.memory : $0.cpu) } ?? "no data"))
+                .chartYAxis {
+                    AxisMarks(position: .trailing, values: [0, 50, 100]) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: value.as(Int.self) == 50 ? [2, 4] : []))
+                        AxisValueLabel(anchor: .leading) { Text("\(value.as(Int.self) ?? 0)").font(.caption2).foregroundStyle(Color.primary.opacity(0.65)) }
+                    }
+                }
+                .chartXAxis(.hidden)
+                .chartPlotStyle { $0.padding(.trailing, 6) }
+                .frame(height: 120)
+                .accessibilityLabel(title + ", " + rangeLabel + ", " + (readings.last.map { String(format: "%.1f percent", memory ? $0.memory : $0.cpu) } ?? "no data"))
             }
         }.frame(maxWidth: .infinity)
     }
@@ -287,24 +448,48 @@ struct HistoryChart: View {
 struct AppServiceRow: View {
     let group: String
     let services: [Service]
+    @State private var expanded = false
+    private var active: Int { services.filter { $0.state == "active" }.count }
+    private var failed: Int { services.filter { $0.state == "failed" }.count }
+    private var statusColor: Color { failed > 0 ? .red : (!services.isEmpty && active == services.count ? .green : .secondary) }
     var body: some View {
-        HStack(alignment: .top) {
-            Text(group).font(.body.weight(.medium)).frame(width: 100, alignment: .leading)
-            Text(services.isEmpty ? "No loaded services found" : services.map { $0.name.replacingOccurrences(of: ".service", with: "").replacingOccurrences(of: group.lowercased() + "-", with: "") }.joined(separator: " · "))
-                .font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
-            if !services.isEmpty {
-                let count = services.filter { $0.state == "active" }.count
-                Label("\(count)/\(services.count) active", systemImage: count == services.count ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                    .font(.callout).foregroundStyle(count == services.count ? .green : .orange)
+        VStack(spacing: 0) {
+            Button { expanded.toggle() } label: {
+                HStack(spacing: 10) {
+                    Circle().fill(statusColor).frame(width: 5, height: 5)
+                    Text(group).fontWeight(.medium)
+                    Spacer(minLength: 6)
+                    Text(failed > 0 ? "\(failed) failed" : "\(services.count) services")
+                        .font(.caption).foregroundStyle(failed > 0 ? Color.red : .secondary)
+                    Text("\(active) / \(services.count)").font(.callout).monospacedDigit().foregroundStyle(.secondary).frame(minWidth: 45, alignment: .trailing)
+                    Image(systemName: expanded ? "chevron.down" : "chevron.right").font(.caption2.weight(.semibold)).foregroundStyle(.secondary).frame(width: 12)
+                }.frame(minHeight: 43).contentShape(Rectangle())
+            }.buttonStyle(.plain)
+                .accessibilityLabel("\(group), \(active) of \(services.count) active, \(failed) failed")
+                .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+                .accessibilityHint("Show or hide individual services")
+            if expanded {
+                VStack(spacing: 10) {
+                    ForEach(services) { service in
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(service.name).font(.caption).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 8)
+                            StatusLabel(state: service.state).fixedSize()
+                        }
+                    }
+                }.padding(.leading, 15).padding(.bottom, 14)
             }
-        }.padding(.vertical, 12)
+        }
     }
 }
 
 struct StatusLabel: View {
     let state: String
     var color: Color { switch state { case "active": .green; case "failed": .red; case "activating", "deactivating", "reloading": .orange; default: .secondary } }
-    var body: some View { Label(state, systemImage: state == "active" ? "checkmark.circle.fill" : (state == "failed" ? "xmark.circle.fill" : "circle")).foregroundStyle(color).font(.callout) }
+    var body: some View {
+        Label(state, systemImage: state == "active" ? "checkmark.circle.fill" : (state == "failed" ? "xmark.circle.fill" : (state == "not loaded" ? "minus.circle" : "circle")))
+            .foregroundStyle(color).font(.callout)
+    }
 }
 
 struct ProcessesView: View {
@@ -317,7 +502,7 @@ struct ProcessesView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("\(processes.count) processes").foregroundStyle(.secondary)
+                Label("\(processes.count) processes", systemImage: "cpu").foregroundStyle(.secondary).font(.callout)
                 Spacer()
                 TextField("Search processes", text: $search).textFieldStyle(.roundedBorder).frame(width: 240)
             }.padding(16)
@@ -329,7 +514,7 @@ struct ProcessesView: View {
                 TableColumn("CPU %", value: \.cpu) { p in Text(String(format: "%.1f", p.cpu)).monospacedDigit() }.width(75)
                 TableColumn("Memory", value: \.rss) { p in Text(bytes(p.rss)).monospacedDigit() }.width(95)
                 TableColumn("RAM %", value: \.memory) { p in Text(String(format: "%.1f", p.memory)).monospacedDigit() }.width(75)
-            }.overlay { if processes.isEmpty { ContentUnavailableView.search(text: search) } }
+            }.overlay { if processes.isEmpty { ContentUnavailableView("No matching processes", systemImage: "cpu", description: Text(search.isEmpty ? "No process data is available from this server." : "Try a different process name, user, or PID.")) } }
             Text("Top 250 processes by CPU. Click column headings to sort. CPU is the lifetime average reported by ps and can exceed 100% on multiple cores.")
                 .font(.caption).foregroundStyle(.secondary).padding(12).frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -341,17 +526,18 @@ struct ServicesView: View {
     @State private var search = ""
     @State private var filter = "All"
     @State private var sortOrder = [KeyPathComparator(\Service.name)]
+    init(initialFilter: String = "All") { _filter = State(initialValue: initialFilter) }
     var services: [Service] {
         (model.snapshot?.services ?? []).filter { s in
             (search.isEmpty || (s.name + " " + s.description).localizedCaseInsensitiveContains(search)) &&
-            (filter == "All" || (filter == "Applications" && s.group != "System") || (filter == "Active" && s.state == "active") || (filter == "Needs attention" && s.state != "active"))
+            (filter == "All" || (filter == "Applications" && s.group != "System") || (filter == "Active" && s.state == "active") || (filter == "Failed" && s.state == "failed") || (filter == "Needs attention" && s.state != "active"))
         }.sorted(using: sortOrder)
     }
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 Picker("Show", selection: $filter) {
-                    ForEach(["All", "Applications", "Active", "Needs attention"], id: \.self) { Text($0) }
+                    ForEach(["All", "Applications", "Active", "Failed", "Needs attention"], id: \.self) { Text($0) }
                 }.frame(width: 210)
                 Spacer()
                 TextField("Search services", text: $search).textFieldStyle(.roundedBorder).frame(width: 240)
@@ -360,11 +546,11 @@ struct ServicesView: View {
             Table(services, sortOrder: $sortOrder) {
                 TableColumn("Service", value: \.name) { s in Text(s.name).fontWeight(.medium).textSelection(.enabled) }.width(min: 170, ideal: 230)
                 TableColumn("Status", value: \.state) { s in StatusLabel(state: s.state) }.width(110)
-                TableColumn("State", value: \.substate).width(90)
+                TableColumn("Substate", value: \.substate).width(90)
                 TableColumn("Description", value: \.description)
             }.overlay { if services.isEmpty { ContentUnavailableView("No matching services", systemImage: "gearshape.2", description: Text("Try a different filter or search.")) } }
             HStack {
-                Text("\(services.count) loaded services")
+                Text("\(services.count) of \(model.snapshot?.services.count ?? 0) loaded services")
                 Spacer()
                 Text("Inactive services may be expected. Active (exited) does not mean a process is running.")
             }.font(.caption).foregroundStyle(.secondary).padding(12)
@@ -412,7 +598,7 @@ struct FilesView: View {
             } primaryAction: { ids in
                 if let id = ids.first, let file = files.first(where: { $0.id == id }) { Task { await model.open(file) } }
             }
-            .overlay { if files.isEmpty && !model.filesBusy && model.fileError == nil { ContentUnavailableView("No files to show", systemImage: "folder", description: Text("This folder is empty or no files match your filter.")) } }
+            .overlay { if files.isEmpty && !model.filesBusy && model.fileError == nil { ContentUnavailableView("No files to show", systemImage: "folder", description: Text(search.isEmpty ? (showHidden ? "This folder is empty." : "This folder has no visible files. Try showing hidden files.") : "Try a different filename or clear the filter.")) } }
             HStack {
                 Text("\(files.count) items" + ((model.listing?.truncated ?? false) ? " · First 10,000 entries only" : ""))
                 Spacer()

@@ -14,7 +14,7 @@ final class VisualTests: XCTestCase {
         model.profile.host = "203.0.113.10"
         try FileManager.default.createDirectory(atPath: destination, withIntermediateDirectories: true)
         try capture(ConnectionView().environmentObject(model), size: NSSize(width: 900, height: 760), name: "connection", destination: destination)
-        let fixture: [String: Any] = [
+        var fixture: [String: Any] = [
             "hostname": "demo-vps", "kernel": "6.8.0-90-generic", "cores": 4,
             "cpuTotal": 2000, "cpuIdle": 1500, "load": [3.31, 1.41, 0.89],
             "memoryTotal": 8375186227, "memoryAvailable": 6227702579,
@@ -31,8 +31,19 @@ final class VisualTests: XCTestCase {
             ],
             "processes": [["pid": 1024, "user": "www-data", "cpu": 18.2, "memory": 4.2, "rss": 352321536, "command": "php"]]
         ]
+        // Complete application groups and one unrelated failed unit exercise the reference layout.
+        var demoServices = fixture["services"] as! [[String: String]]
+        for group in ["billo", "atlas", "corgo"] {
+            let units = group == "corgo" ? ["octane", "reverb", "queue", "broadcast", "scheduler"] : ["octane", "reverb", "queue", "scheduler"]
+            for unit in units where !demoServices.contains(where: { $0["name"] == "\(group)-\(unit).service" }) {
+                demoServices.append(["name": "\(group)-\(unit).service", "state": "active", "substate": "running", "description": "Demo application service"])
+            }
+        }
+        demoServices.append(["name": "demo-backup.service", "state": "failed", "substate": "failed", "description": "Demo failed backup unit"])
+        fixture["services"] = demoServices
         model.snapshot = try JSONDecoder().decode(Snapshot.self, from: JSONSerialization.data(withJSONObject: fixture))
         model.connected = true
+        model.lastUpdated = Date().addingTimeInterval(-4)
         model.cpuUsage = 26.4
         for i in 0..<24 {
             let date = Date().addingTimeInterval(Double(i - 24) * 5.0)
@@ -43,9 +54,28 @@ final class VisualTests: XCTestCase {
         try capture(OverviewView().environmentObject(model), size: NSSize(width: 950, height: 780), name: "overview", destination: destination)
         try capture(ServicesView().environmentObject(model), size: NSSize(width: 950, height: 640), name: "services", destination: destination)
         try capture(ProcessesView().environmentObject(model), size: NSSize(width: 950, height: 640), name: "processes", destination: destination)
-        try capture(ContentView().environmentObject(model), size: NSSize(width: 1180, height: 790), name: "window", destination: destination)
+        try capture(ContentView().environmentObject(model), size: NSSize(width: 1240, height: 960), name: "window", destination: destination)
         try capture(ContentView().environmentObject(model), size: NSSize(width: 960, height: 640), name: "window-minimum", destination: destination)
-        try capture(ContentView().environmentObject(model), size: NSSize(width: 1180, height: 790), name: "window-dark", destination: destination, scheme: .dark)
+        try capture(ContentView().environmentObject(model), size: NSSize(width: 1240, height: 960), name: "window-dark", destination: destination, scheme: .dark)
+        try capture(ServicesView(initialFilter: "Failed").environmentObject(model), size: NSSize(width: 950, height: 640), name: "services-failed", destination: destination)
+        model.paused = true
+        try capture(ContentView().environmentObject(model), size: NSSize(width: 960, height: 640), name: "window-paused", destination: destination)
+        model.paused = false
+        model.error = "Readings are stale. The SSH connection timed out. Retry to collect a new reading."
+        model.profile.name = "Production application server with a long name"
+        try capture(ContentView().environmentObject(model), size: NSSize(width: 960, height: 640), name: "window-stale", destination: destination, scheme: .dark)
+        model.error = nil
+        model.readings = []
+        model.cpuUsage = nil
+        try capture(OverviewView().environmentObject(model), size: NSSize(width: 745, height: 640), name: "overview-sampling", destination: destination)
+        try capture(VStack {
+            AppServiceRow(group: "Billo", services: [Service(name: "billo-queue.service", state: "failed", substate: "failed", description: "Queue")])
+            Divider()
+            StatusLabel(state: "failed")
+            StatusLabel(state: "inactive")
+            StatusLabel(state: "not loaded")
+        }.padding(), size: NSSize(width: 700, height: 240), name: "service-states", destination: destination)
+        model.profile.name = "Demo VPS"
         model.listing = DirectoryListing(path: "/var/www", entries: [
             RemoteFile(name: "billo", path: "/var/www/billo", directory: true, symlink: false, size: 4096, modified: Date().timeIntervalSince1970, permissions: "drwxr-xr-x"),
             RemoteFile(name: "atlas", path: "/var/www/atlas", directory: true, symlink: false, size: 4096, modified: Date().timeIntervalSince1970, permissions: "drwxr-xr-x"),
